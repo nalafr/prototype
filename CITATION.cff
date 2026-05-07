@@ -1,10 +1,10 @@
 cff-version: 1.2.0
 title: "GitHub Prototype"
 authors:
-  - family-names: "YourSurname"
-    given-names: "YourName"
+  - family-names: "Freundlich"
+    given-names: "Nala"
     affiliation: "Your Institution"
-    orcid: "https://orcid.org/0000-0000-0000-0000"
+    orcid: "https://orcid.org/0009-0000-5538-453X"
 date-released: "2026-05-07"
 version: "0.1.0"
 message: "If you use this GitHub prototype, please cite it as below."
