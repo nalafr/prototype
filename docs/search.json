@@ -1,38 +1,31 @@
 [
   {
-    "objectID": "wikidata-item.html",
-    "href": "wikidata-item.html",
-    "title": "Wikidata Item Profile",
+    "objectID": "timeline.html",
+    "href": "timeline.html",
+    "title": "Ausstellungen Timeline",
     "section": "",
-    "text": "This notebook-backed page queries Wikidata with SPARQL and renders a styled HTML profile.\nTo profile another item, change the item_id value in Cell 3 and re-render the site.\n\n\n\nSELECT ?property ?propertyLabel ?value ?valueLabel WHERE {\n  BIND(wd:Q138573028 AS ?item)\n  ?item ?p ?statement .\n  ?property wikibase:claim ?p .\n  ?statement ?ps ?value .\n  ?property wikibase:statementProperty ?ps .\n\n  SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE],en\". }\n}\nORDER BY ?propertyLabel\n\n\n\n\n10\n\n\n\n\n\n\n\n\n  \n    \n    Item: Q138573028 · Statements: 10 · Generated: 2026-05-07 11:26 UTC\n    Open item on Wikidata\n  \n\n  \n    \n      \n      curator2end time1instance of1location1main subject1official website1participant1start time1title1\n    \n    \n      \n      \n    \n      \n        \n        \n      \n      \n        7 Entity values\n        3 Literal values\n      \n    \n    \n    \n  \n\n  \n    \n            \n              \n              Stefan GronertQ138638435\n            \n            \n            \n              \n              2024-01-14T00:00:00Z\n            \n            \n            \n              \n              exhibition\n            \n            \n            \n              \n              Sprengel Museum\n            \n            \n            \n              \n              Adrian Sauer\n            \n            \n            \n              \n              https://www.sprengel-museum.de/ausstellungen/archiv/adrian-sauer-spectrum-stiftung\n            \n            \n            \n              \n              Adrian Sauer\n            \n            \n            \n              \n              2023-10-14T00:00:00Z\n            \n            \n            \n              \n              Adrian Sauer: Truth Tablespectrum Internationaler Preis für Fotografie der Stiftung Niedersachsen"
+    "text": "Eine interaktive Übersicht aller Ausstellungen. Nutze die Filter, um nach Kurator:in zu filtern, einen Zeitraum einzugrenzen oder per Titel/Beschreibung zu suchen.\n\nmutable selectedExhibition = null\n\n\n\n\n\n\n\ndata = FileAttachment(\"exhibitions.csv\").csv({typed: false})\n\n\n\n\n\n\n\nparseDate = d3.timeParse(\"%Y-%m-%d\")\n\nexhibitions = data.map(d =&gt; ({\n  ...d,\n  start: parseDate(d.start_date),\n  end: d.end_date ? parseDate(d.end_date) : parseDate(d.start_date),\n  curator: d.curator && d.curator.trim() !== \"\" ? d.curator.trim() : null\n})).filter(d =&gt; d.start)\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\ncuratorList = [...new Set(exhibitions.map(d =&gt; d.curator).filter(d =&gt; d))].sort()\nyearExtent = d3.extent(exhibitions.flatMap(d =&gt; [d.start, d.end]))\nminYear = yearExtent[0].getFullYear()\nmaxYear = yearExtent[1].getFullYear()\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nFilter\n\nviewof selectedCurator = Inputs.select(\n  [\"Alle\", ...curatorList],\n  {label: \"Kurator:in\", value: \"Alle\"}\n)\n\n\n\n\n\n\n\nviewof searchText = Inputs.text({\n  label: \"Suche (Titel / Beschreibung)\",\n  placeholder: \"z.B. Sammlung, Fotografie ...\"\n})\n\n\n\n\n\n\n\nviewof yearRange = Inputs.range([minYear, maxYear], {\n  label: \"Startjahr ab\",\n  step: 1,\n  value: minYear\n})\n\n\n\n\n\n\n\nfiltered = exhibitions.filter(d =&gt; {\n  const matchesCurator = selectedCurator === \"Alle\" || d.curator === selectedCurator\n  const matchesSearch = searchText.trim() === \"\" ||\n    (d.title + \" \" + d.description).toLowerCase().includes(searchText.toLowerCase())\n  const matchesYear = d.start.getFullYear() &gt;= yearRange\n  return matchesCurator && matchesSearch && matchesYear\n}).sort((a, b) =&gt; a.start - b.start)\n\n\n\n\n\n\n von  Ausstellungen angezeigt\n\n\nTimeline\n\nchart = {\n  const margin = {top: 20, right: 40, bottom: 40, left: 200};\n  const rowHeight = 28;\n  const width = 960;\n  const height = Math.max(200, filtered.length * rowHeight + margin.top + margin.bottom);\n\n  const svg = d3.create(\"svg\")\n    .attr(\"viewBox\", [0, 0, width, height])\n    .attr(\"width\", width)\n    .attr(\"height\", height)\n    .attr(\"style\", \"max-width: 100%; height: auto; font: 12px sans-serif;\");\n\n  if (filtered.length === 0) {\n    svg.append(\"text\")\n      .attr(\"x\", width / 2).attr(\"y\", height / 2)\n      .attr(\"text-anchor\", \"middle\")\n      .text(\"Keine Ausstellungen fuer diese Filter gefunden.\");\n    return svg.node();\n  }\n\n  const xExtent = d3.extent(filtered.flatMap(d =&gt; [d.start, d.end]));\n  const xPad = 30 * 24 * 60 * 60 * 1000; // 30 Tage Padding\n  const x = d3.scaleTime()\n    .domain([new Date(xExtent[0] - xPad), new Date(xExtent[1] + xPad)])\n    .range([margin.left, width - margin.right]);\n\n  const y = d3.scaleBand()\n    .domain(filtered.map(d =&gt; d.qid))\n    .range([margin.top, height - margin.bottom])\n    .padding(0.3);\n\n  // Adaptive Tick-Strategie je nach Zeitspanne\n  const spanYears = (xExtent[1] - xExtent[0]) / (365.25 * 24 * 60 * 60 * 1000);\n  const tickInterval = spanYears &lt;= 2 ? d3.timeMonth.every(1)\n                     : spanYears &lt;= 5 ? d3.timeMonth.every(3)\n                     : d3.timeYear.every(1);\n  const tickFmt = spanYears &lt;= 2\n    ? d =&gt; d.getMonth() === 0 ? d3.timeFormat(\"%b %Y\")(d) : d3.timeFormat(\"%b\")(d)\n    : spanYears &lt;= 5\n    ? d =&gt; d.getMonth() === 0 ? d3.timeFormat(\"%Y\")(d) : d3.timeFormat(\"%b\")(d)\n    : d3.timeFormat(\"%Y\");\n\n  svg.append(\"g\")\n    .attr(\"transform\", `translate(0,${margin.top})`)\n    .call(d3.axisTop(x).ticks(tickInterval).tickFormat(tickFmt))\n    .call(g =&gt; g.select(\".domain\").remove());\n\n  svg.append(\"g\")\n    .attr(\"stroke\", \"#e0e0e0\")\n    .selectAll(\"line\")\n    .data(x.ticks(tickInterval))\n    .join(\"line\")\n      .attr(\"x1\", d =&gt; x(d)).attr(\"x2\", d =&gt; x(d))\n      .attr(\"y1\", margin.top).attr(\"y2\", height - margin.bottom);\n\n  svg.append(\"g\")\n    .selectAll(\"text\")\n    .data(filtered)\n    .join(\"text\")\n      .attr(\"x\", margin.left - 10)\n      .attr(\"y\", d =&gt; y(d.qid) + y.bandwidth() / 2)\n      .attr(\"dy\", \"0.35em\")\n      .attr(\"text-anchor\", \"end\")\n      .attr(\"font-size\", \"11px\")\n      .text(d =&gt; d.title.length &gt; 35 ? d.title.slice(0, 35) + \"...\" : d.title);\n\n  svg.append(\"g\")\n    .selectAll(\"rect\")\n    .data(filtered)\n    .join(\"rect\")\n      .attr(\"x\", d =&gt; x(d.start))\n      .attr(\"y\", d =&gt; y(d.qid))\n      .attr(\"width\", d =&gt; Math.max(3, x(d.end) - x(d.start)))\n      .attr(\"height\", y.bandwidth())\n      .attr(\"fill\", \"#3b6e8f\")\n      .attr(\"rx\", 3)\n      .attr(\"cursor\", \"pointer\")\n      .on(\"click\", (event, d) =&gt; { mutable selectedExhibition = d; })\n      .on(\"mouseenter\", function() { d3.select(this).attr(\"fill\", \"#1d3f55\"); })\n      .on(\"mouseleave\", function() { d3.select(this).attr(\"fill\", \"#3b6e8f\"); })\n    .append(\"title\")\n      .text(d =&gt; `${d.title}\\n${d.start_date} - ${d.end_date || d.start_date}${d.curator ? \"\\nKurator:in: \" + d.curator : \"\"}`);\n\n  return svg.node();\n}\n\n\n\n\n\n\n\n\nDetails\n\nselectedExhibition === null\n  ? md`*Klicke auf einen Balken in der Timeline, um Details anzuzeigen.*`\n  : md`### ${selectedExhibition.title}\n\n**Zeitraum:** ${selectedExhibition.start_date} - ${selectedExhibition.end_date || selectedExhibition.start_date}\n\n**Ort:** ${selectedExhibition.location}${selectedExhibition.curator ? \"  \\n**Kurator:in:** \" + selectedExhibition.curator : \"\"}\n\n${selectedExhibition.description}\n\n[Museums-Website](${selectedExhibition.museum_url}) · [Wikidata](${selectedExhibition.wikidata_url})`"
   },
   {
-    "objectID": "wikidata-item.html#sparql-query-used-for-q138573028",
-    "href": "wikidata-item.html#sparql-query-used-for-q138573028",
-    "title": "Wikidata Item Profile",
+    "objectID": "wikidata.html",
+    "href": "wikidata.html",
+    "title": "Wikidata",
     "section": "",
-    "text": "SELECT ?property ?propertyLabel ?value ?valueLabel WHERE {\n  BIND(wd:Q138573028 AS ?item)\n  ?item ?p ?statement .\n  ?property wikibase:claim ?p .\n  ?statement ?ps ?value .\n  ?property wikibase:statementProperty ?ps .\n\n  SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE],en\". }\n}\nORDER BY ?propertyLabel"
+    "text": "This section documents Wikidata workflows, queries, and references for the project.\n\n\n\nOpen the rendered profile page: Wikidata Item Profile\n\n\n\n\nThe profile page is generated from wikidata-item.ipynb, which:\n\nSets an item_id input (for example, Q138547468).\nBuilds a SPARQL query for all direct statements on the item.\nCalls the Wikidata Query Service endpoint.\nRenders the returned data as a styled HTML profile.\n\nThe helper module wikidata_profile.py contains reusable logic for querying, transforming, and rendering the data."
   },
   {
-    "objectID": "project-log.html",
-    "href": "project-log.html",
-    "title": "Project Log",
+    "objectID": "wikidata.html#item-profile-page",
+    "href": "wikidata.html#item-profile-page",
+    "title": "Wikidata",
     "section": "",
-    "text": "Track important milestones and implementation notes here.\n\n\n\nInitialized Quarto website source files.\nAdded GitHub Pages deployment workflow.\nSet Quarto output directory to docs for GitHub Pages publishing.\nAdded notebook-backed item profile page for Wikidata item Q138547468.\nCreated reusable helper module wikidata_profile.py for query, fetch, and rendering logic.\nAdded visual summaries to the item profile page (top properties and value type breakdown).\nFixed Wikidata endpoint access by sending explicit HTTP headers in SPARQL requests.\nParameterized notebook workflow so item_id can be changed in one place.\nEnabled collapsible code blocks in rendered notebook HTML.\nInitialized git repository, pushed to mrchristian/prototype, and connected origin.\nFixed GitHub Actions Pages setup failure by enabling automatic Pages enablement in workflow.\nAdded manual workflow_dispatch deployment instructions in project documentation.\n\n\n\n\nUse these steps to publish and re-publish the site to GitHub Pages.\n\nCommit and push updates to main.\nIn GitHub, open Settings -&gt; Pages.\nUnder Build and deployment, set Source to GitHub Actions.\nConfirm the workflow file .github/workflows/publish.yml is present.\nWait for the Publish Quarto Site workflow to complete.\n\n\n\n\nOpen Actions in GitHub.\nSelect Publish Quarto Site.\nClick Run workflow and choose main.\n\n\n\n\n\nRe-check Settings -&gt; Pages is enabled for GitHub Actions.\nRe-run the workflow after enabling Pages."
+    "text": "Open the rendered profile page: Wikidata Item Profile"
   },
   {
-    "objectID": "project-log.html#section",
-    "href": "project-log.html#section",
-    "title": "Project Log",
+    "objectID": "wikidata.html#how-data-is-retrieved",
+    "href": "wikidata.html#how-data-is-retrieved",
+    "title": "Wikidata",
     "section": "",
-    "text": "Initialized Quarto website source files.\nAdded GitHub Pages deployment workflow.\nSet Quarto output directory to docs for GitHub Pages publishing.\nAdded notebook-backed item profile page for Wikidata item Q138547468.\nCreated reusable helper module wikidata_profile.py for query, fetch, and rendering logic.\nAdded visual summaries to the item profile page (top properties and value type breakdown).\nFixed Wikidata endpoint access by sending explicit HTTP headers in SPARQL requests.\nParameterized notebook workflow so item_id can be changed in one place.\nEnabled collapsible code blocks in rendered notebook HTML.\nInitialized git repository, pushed to mrchristian/prototype, and connected origin.\nFixed GitHub Actions Pages setup failure by enabling automatic Pages enablement in workflow.\nAdded manual workflow_dispatch deployment instructions in project documentation."
-  },
-  {
-    "objectID": "project-log.html#publishing-instructions",
-    "href": "project-log.html#publishing-instructions",
-    "title": "Project Log",
-    "section": "",
-    "text": "Use these steps to publish and re-publish the site to GitHub Pages.\n\nCommit and push updates to main.\nIn GitHub, open Settings -&gt; Pages.\nUnder Build and deployment, set Source to GitHub Actions.\nConfirm the workflow file .github/workflows/publish.yml is present.\nWait for the Publish Quarto Site workflow to complete.\n\n\n\n\nOpen Actions in GitHub.\nSelect Publish Quarto Site.\nClick Run workflow and choose main.\n\n\n\n\n\nRe-check Settings -&gt; Pages is enabled for GitHub Actions.\nRe-run the workflow after enabling Pages."
+    "text": "The profile page is generated from wikidata-item.ipynb, which:\n\nSets an item_id input (for example, Q138547468).\nBuilds a SPARQL query for all direct statements on the item.\nCalls the Wikidata Query Service endpoint.\nRenders the returned data as a styled HTML profile.\n\nThe helper module wikidata_profile.py contains reusable logic for querying, transforming, and rendering the data."
   },
   {
     "objectID": "index.html",
@@ -63,24 +56,38 @@
     "text": "Add your project overview and goals.\nAdd additional pages as the project grows.\nPublish automatically via GitHub Pages."
   },
   {
-    "objectID": "wikidata.html",
-    "href": "wikidata.html",
-    "title": "Wikidata",
+    "objectID": "project-log.html",
+    "href": "project-log.html",
+    "title": "Project Log",
     "section": "",
-    "text": "This section documents Wikidata workflows, queries, and references for the project.\n\n\n\nOpen the rendered profile page: Wikidata Item Profile\n\n\n\n\nThe profile page is generated from wikidata-item.ipynb, which:\n\nSets an item_id input (for example, Q138547468).\nBuilds a SPARQL query for all direct statements on the item.\nCalls the Wikidata Query Service endpoint.\nRenders the returned data as a styled HTML profile.\n\nThe helper module wikidata_profile.py contains reusable logic for querying, transforming, and rendering the data."
+    "text": "Track important milestones and implementation notes here.\n\n\n\nInitialized Quarto website source files.\nAdded GitHub Pages deployment workflow.\nSet Quarto output directory to docs for GitHub Pages publishing.\nAdded notebook-backed item profile page for Wikidata item Q138547468.\nCreated reusable helper module wikidata_profile.py for query, fetch, and rendering logic.\nAdded visual summaries to the item profile page (top properties and value type breakdown).\nFixed Wikidata endpoint access by sending explicit HTTP headers in SPARQL requests.\nParameterized notebook workflow so item_id can be changed in one place.\nEnabled collapsible code blocks in rendered notebook HTML.\nInitialized git repository, pushed to mrchristian/prototype, and connected origin.\nFixed GitHub Actions Pages setup failure by enabling automatic Pages enablement in workflow.\nAdded manual workflow_dispatch deployment instructions in project documentation.\n\n\n\n\nUse these steps to publish and re-publish the site to GitHub Pages.\n\nCommit and push updates to main.\nIn GitHub, open Settings -&gt; Pages.\nUnder Build and deployment, set Source to GitHub Actions.\nConfirm the workflow file .github/workflows/publish.yml is present.\nWait for the Publish Quarto Site workflow to complete.\n\n\n\n\nOpen Actions in GitHub.\nSelect Publish Quarto Site.\nClick Run workflow and choose main.\n\n\n\n\n\nRe-check Settings -&gt; Pages is enabled for GitHub Actions.\nRe-run the workflow after enabling Pages."
   },
   {
-    "objectID": "wikidata.html#item-profile-page",
-    "href": "wikidata.html#item-profile-page",
-    "title": "Wikidata",
+    "objectID": "project-log.html#section",
+    "href": "project-log.html#section",
+    "title": "Project Log",
     "section": "",
-    "text": "Open the rendered profile page: Wikidata Item Profile"
+    "text": "Initialized Quarto website source files.\nAdded GitHub Pages deployment workflow.\nSet Quarto output directory to docs for GitHub Pages publishing.\nAdded notebook-backed item profile page for Wikidata item Q138547468.\nCreated reusable helper module wikidata_profile.py for query, fetch, and rendering logic.\nAdded visual summaries to the item profile page (top properties and value type breakdown).\nFixed Wikidata endpoint access by sending explicit HTTP headers in SPARQL requests.\nParameterized notebook workflow so item_id can be changed in one place.\nEnabled collapsible code blocks in rendered notebook HTML.\nInitialized git repository, pushed to mrchristian/prototype, and connected origin.\nFixed GitHub Actions Pages setup failure by enabling automatic Pages enablement in workflow.\nAdded manual workflow_dispatch deployment instructions in project documentation."
   },
   {
-    "objectID": "wikidata.html#how-data-is-retrieved",
-    "href": "wikidata.html#how-data-is-retrieved",
-    "title": "Wikidata",
+    "objectID": "project-log.html#publishing-instructions",
+    "href": "project-log.html#publishing-instructions",
+    "title": "Project Log",
     "section": "",
-    "text": "The profile page is generated from wikidata-item.ipynb, which:\n\nSets an item_id input (for example, Q138547468).\nBuilds a SPARQL query for all direct statements on the item.\nCalls the Wikidata Query Service endpoint.\nRenders the returned data as a styled HTML profile.\n\nThe helper module wikidata_profile.py contains reusable logic for querying, transforming, and rendering the data."
+    "text": "Use these steps to publish and re-publish the site to GitHub Pages.\n\nCommit and push updates to main.\nIn GitHub, open Settings -&gt; Pages.\nUnder Build and deployment, set Source to GitHub Actions.\nConfirm the workflow file .github/workflows/publish.yml is present.\nWait for the Publish Quarto Site workflow to complete.\n\n\n\n\nOpen Actions in GitHub.\nSelect Publish Quarto Site.\nClick Run workflow and choose main.\n\n\n\n\n\nRe-check Settings -&gt; Pages is enabled for GitHub Actions.\nRe-run the workflow after enabling Pages."
+  },
+  {
+    "objectID": "wikidata-item.html",
+    "href": "wikidata-item.html",
+    "title": "Wikidata Item Profile",
+    "section": "",
+    "text": "This notebook-backed page queries Wikidata with SPARQL and renders a styled HTML profile.\nTo profile another item, change the item_id value in Cell 3 and re-render the site.\n\n\n\nSELECT ?property ?propertyLabel ?value ?valueLabel WHERE {\n  BIND(wd:Q138573028 AS ?item)\n  ?item ?p ?statement .\n  ?property wikibase:claim ?p .\n  ?statement ?ps ?value .\n  ?property wikibase:statementProperty ?ps .\n\n  SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE],en\". }\n}\nORDER BY ?propertyLabel\n\n\n\n\n10\n\n\n\n\n\n\n\n\n  \n    \n    Item: Q138573028 · Statements: 10 · Generated: 2026-04-23 11:47 UTC\n    Open item on Wikidata\n  \n\n  \n    \n      \n      curator2end time1instance of1location1main subject1official website URL1participant1start time1title1\n    \n    \n      \n      \n    \n      \n        \n        \n      \n      \n        7 Entity values\n        3 Literal values\n      \n    \n    \n    \n  \n\n  \n    \n            \n              \n              Stefan GronertQ138638435\n            \n            \n            \n              \n              2024-01-14T00:00:00Z\n            \n            \n            \n              \n              exhibition\n            \n            \n            \n              \n              Sprengel Museum\n            \n            \n            \n              \n              Adrian Sauer\n            \n            \n            \n              \n              https://www.sprengel-museum.de/ausstellungen/archiv/adrian-sauer-spectrum-stiftung\n            \n            \n            \n              \n              Adrian Sauer\n            \n            \n            \n              \n              2023-10-14T00:00:00Z\n            \n            \n            \n              \n              Adrian Sauer: Truth Tablespectrum Internationaler Preis für Fotografie der Stiftung Niedersachsen"
+  },
+  {
+    "objectID": "wikidata-item.html#sparql-query-used-for-q138573028",
+    "href": "wikidata-item.html#sparql-query-used-for-q138573028",
+    "title": "Wikidata Item Profile",
+    "section": "",
+    "text": "SELECT ?property ?propertyLabel ?value ?valueLabel WHERE {\n  BIND(wd:Q138573028 AS ?item)\n  ?item ?p ?statement .\n  ?property wikibase:claim ?p .\n  ?statement ?ps ?value .\n  ?property wikibase:statementProperty ?ps .\n\n  SERVICE wikibase:label { bd:serviceParam wikibase:language \"[AUTO_LANGUAGE],en\". }\n}\nORDER BY ?propertyLabel"
   }
 ]
